@@ -2,8 +2,10 @@ import glob
 import pandas as pd
 import xml.etree.ElementTree as ET
 from datetime import datetime
+import config as cfg
 import psycopg2
 import io
+import sys
 
 #### GLOBAL VARIABLES ####
 log_file = "log_file.log"
@@ -37,41 +39,61 @@ def extract_from_xml(file_2_process):
 
 def extract():
 
-    extracted_data = pd.DataFrame(columns=["column1","column2","column3"])
+    try:
+        extracted_data = pd.DataFrame(columns=["column1","column2","column3"])
 
-    ## Process all csv files
-    for csv_file in glob.glob("*.csv"):
+        ## Process all csv files
+        for csv_file in glob.glob("*.csv"):
 
-        extracted_data = pd.concat([extracted_data,extract_from_csv(csv_file)],ignore_index=True)
-    
-    ## Process all json files
-    for json_file in glob.glob("*.json"):
+            extracted_data = pd.concat([extracted_data,extract_from_csv(csv_file)],ignore_index=True)
+        
+        ## Process all json files
+        for json_file in glob.glob("*.json"):
 
-        extracted_data = pd.concat([extracted_data,extract_from_json(json_file)],ignore_index=True)
-    
-    ## Process all xml files
-    for xml_file in glob.glob("*.xml"):
+            extracted_data = pd.concat([extracted_data,extract_from_json(json_file)],ignore_index=True)
+        
+        ## Process all xml files
+        for xml_file in glob.glob("*.xml"):
 
-        extracted_data = pd.concat([extracted_data,extract_from_xml(xml_file)],ignore_index=True)
-    
+            extracted_data = pd.concat([extracted_data,extract_from_xml(xml_file)],ignore_index=True)
+
+    except Exception as e:   
+        log_process(f"Error extracting data: {e}")
+        sys.exit(1) 
+
     return extracted_data
 
 
 def transform(data):
 
-    ### TRANSFORMATION  HERE ###
+    try:
+
+       pass
+
+    except Exception as e:
+        log_process(f"Error transforming data: {e}")
+        sys.exit(1)
 
     return data
 
 def load_data(transformed_data,cur,conn):
 
-    csv_buffer = io.StringIO()
-    transformed_data.to_csv(csv_buffer, index=False, header=False)  # No escribir el encabezado
+    try:
 
-    csv_buffer.seek(0)
+        csv_buffer = io.StringIO()
+        transformed_data.to_csv(csv_buffer, index=False, header=False) 
+        csv_buffer.seek(0)
 
-    cur.copy_from(csv_buffer, table_name, sep=',')
-    conn.commit()
+        cur.copy_expert(f"""COPY {table_name} ("column1","column2","column3") FROM STDIN WITH (FORMAT CSV)""", csv_buffer)
+        conn.commit()
+
+    except Exception as e:
+            
+        log_process(f"Error loading data: {e}")
+        conn.rollback()
+        cur.close()
+        conn.close()
+        sys.exit(1)
 
 def log_process(msg):
 
